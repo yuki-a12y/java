@@ -3,12 +3,165 @@
  */
 package app;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Scanner;
+
 public class App {
-    public String getGreeting() {
-        return "Hello World!";
-    }
+    private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
-        System.out.println(new App().getGreeting());
+        while (true) {
+            System.out.println("予算管理システム メインメニュー");
+            System.out.println("1. 予算の登録");
+            System.out.println("2. 購入データの登録");
+            System.out.println("3. 今月の予算見込み表示");
+            System.out.println("4. 過去データCSV出力");
+            System.out.println("5. システム終了");
+            System.out.print("選択してください（1-5）: ");
+
+            int selection = scanner.nextInt();
+
+            switch (selection) {
+                case 1:
+                    registerBudget();
+                    break;
+                case 2:
+                    // 購入データの登録
+                    registerPurchaseData();
+                    break;
+                case 3:
+                    // 今月の予算見込み表示
+                    displayCurrentBudgetForecast();
+                    break;
+                case 4:
+                    // 過去データCSV出力
+                    exportDataToCSV();
+                    break;
+                case 5:
+                    // システム終了
+                    System.out.println("システムを終了します。");
+                    scanner.close();
+                    return;
+                default:
+                    System.out.println("無効な選択です。1から5の数字を入力してください。");
+            }
+        }
+    }
+
+    private static void registerBudget() {
+        try {
+            String yearMonth;
+            int budget;
+            boolean validInput = false;
+
+            // ユーザーが有効な年月を入力するまで繰り返す
+            do {
+                System.out.print("登録する月(YYYYMM): ");
+                yearMonth = scanner.next();
+                if (yearMonth.matches("\\d{6}") && Integer.parseInt(yearMonth.substring(4, 6)) > 0
+                        && Integer.parseInt(yearMonth.substring(4, 6)) <= 12) {
+                    validInput = true;
+                } else {
+                    System.out.println("エラー：正しい月を入力してください。");
+                }
+            } while (!validInput);
+
+            String year = yearMonth.substring(0, 4);
+            String month = yearMonth.substring(4, 6);
+
+            // ユーザーが有効な予算額を入力するまで繰り返す
+            do {
+                System.out.print("予算額を入力してください（円）: ");
+                while (!scanner.hasNextInt()) {
+                    System.out.println("エラー：数値で入力してください。");
+                    scanner.next(); // 不正な入力を消費
+                    System.out.print("予算額を入力してください（円）: ");
+                }
+                budget = scanner.nextInt();
+                validInput = true;
+            } while (!validInput);
+
+            // PostgreSQLに接続
+            Connection conn = DriverManager.getConnection("jdbc:postgresql://db/postgres", "postgres",
+                    "password");
+
+            // 重複チェック
+            String checkSql = "SELECT budget_amount FROM budget WHERE year = ? AND month = ?";
+            PreparedStatement checkStmt = conn.prepareStatement(checkSql);
+            checkStmt.setString(1, year);
+            checkStmt.setString(2, month);
+            ResultSet rs = checkStmt.executeQuery();
+
+            if (rs.next()) {
+                int existingBudget = rs.getInt("budget_amount");
+                System.out.println("既に予算が登録されています。：" + year + month + "," + existingBudget + "円");
+                System.out.println("選択してください。");
+                System.out.println("1. 登録を中止する");
+                System.out.println("2. 次の内容で更新する：" + year + month + "," + budget + "円");
+                System.out.print("選択してください（1-2）: ");
+
+                int choice;
+                do {
+                    while (!scanner.hasNextInt()) {
+                        System.out.println("1-2で入力してください。");
+                        scanner.next(); // 不正な入力を消費
+                    }
+                    choice = scanner.nextInt();
+                    if (choice == 1) {
+                        System.out.println("登録を中止しました。");
+                        return;
+                    } else if (choice == 2) {
+                        // 更新処理
+                        String updateSql = "UPDATE Budget SET budget_amount = ? WHERE year = ? AND month = ?";
+                        PreparedStatement updateStmt = conn.prepareStatement(updateSql);
+                        updateStmt.setInt(1, budget);
+                        updateStmt.setString(2, year);
+                        updateStmt.setString(3, month);
+                        updateStmt.executeUpdate();
+                        updateStmt.close();
+                        System.out.println("予算が正常に更新されました。");
+                    } else {
+                        System.out.println("1-2で入力してください。");
+                    }
+                } while (choice != 1 && choice != 2);
+            } else {
+                // 新規登録処理
+                String insertSql = "INSERT INTO budget (year, month, budget_amount) VALUES (?, ?, ?)";
+                PreparedStatement insertStmt = conn.prepareStatement(insertSql);
+                insertStmt.setString(1, year);
+                insertStmt.setString(2, month);
+                insertStmt.setInt(3, budget);
+                insertStmt.executeUpdate();
+                insertStmt.close();
+                System.out.println("予算が正常に登録されました。");
+            }
+
+            // リソースを閉じる
+            rs.close();
+            checkStmt.close();
+            conn.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println("エラー：データベースエラーが発生しました。システムを終了します。");
+        }
+    }
+
+    private static void registerPurchaseData() {
+        // 購入データ登録のロジック
+        System.out.println("購入データを登録しました。");
+    }
+
+    private static void displayCurrentBudgetForecast() {
+        // 今月の予算見込み表示のロジック
+        System.out.println("今月の予算見込みを表示します。");
+    }
+
+    private static void exportDataToCSV() {
+        // 過去データCSV出力のロジック
+        System.out.println("過去データをCSVに出力しました。");
     }
 }
